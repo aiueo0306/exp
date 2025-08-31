@@ -69,6 +69,14 @@ with sync_playwright() as p:
     try:
         print("▶ ページにアクセス中...")
         page.goto(BASE_URL, timeout=30000)
+        
+        print("▶ 記事を抽出する前に HTML を保存します...")
+        html = page.content()
+        with open("page.html", "w", encoding="utf-8") as f:
+            f.write(html)
+        print("💾 HTML を保存しました: page.html")
+        
+        
         try:
             page.wait_for_load_state("networkidle", timeout=30000)
         except Exception:
