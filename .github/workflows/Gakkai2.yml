@@ -67,10 +67,10 @@ jobs:
           fi
 
       - name: Upload debug artifacts
-        if: always()   # 成功・失敗に関わらず必ずアップロード
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: debug-artifacts
           path: |
-            page.html
-            screenshot.png
+            ${{ github.workspace }}/page.html
+            ${{ github.workspace }}/screenshot.png
