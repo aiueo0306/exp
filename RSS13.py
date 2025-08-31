@@ -29,7 +29,7 @@ from browser_utils import click_button_in_order
 BASE_URL = "https://medical.taisho.co.jp/medical/doctor-news/"
 GAKKAI = "大正製薬（ニュースレター）"
 
-SELECTOR_TITLE = "div._page_inner_contents_1r7ok_40.m_6d731127.mantine-Stack-root div._news_text_jzd1w_19"
+SELECTOR_TITLE = "div._news_text_jzd1w_19"
 title_selector = ""
 title_index = 0
 href_selector = "a"
