@@ -105,13 +105,17 @@ with sync_playwright() as p:
     page.wait_for_selector(SELECTOR_TITLE, state="visible", timeout=120000)
 
     # ✅ DOMを保存
+    save_dir = os.getcwd()
+    html_path = os.path.join(save_dir, "page.html")
+    screenshot_path = os.path.join(save_dir, "screenshot.png")
+    
     html = page.content()
-    with open("page.html", "w", encoding="utf-8") as f:
+    with open(html_path, "w", encoding="utf-8") as f:
         f.write(html)
-    print("💾 HTML を保存しました: page.html")
-
-    # 必要ならスクリーンショットも保存
-    page.screenshot(path="screenshot.png", full_page=True)
+    
+    page.screenshot(path=screenshot_path, full_page=True)
+    
+    print("💾 保存したファイル:", html_path, screenshot_path)
     
     
     items = extract_items(
