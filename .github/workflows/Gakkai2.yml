@@ -35,7 +35,7 @@ jobs:
           for script in RSS*.py; do
             echo "▶ Running $script ..."
             success=false
-            for i in 1 2 3; do
+            for i in 1; do
               python "$script" && { success=true; break; }
               echo "⚠️  $script failed (attempt $i)"
               sleep 10
