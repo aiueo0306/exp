@@ -74,7 +74,7 @@ with sync_playwright() as p:
         page.goto(BASE_URL, timeout=30000)
         
         try:
-            page.wait_for_load_state("networkidle", timeout=120000)
+            page.wait_for_load_state("networkidle", timeout=240000)
         except Exception:
             page.wait_for_load_state("domcontentloaded")
         print("🌐 到達URL:", page.url)
