@@ -104,6 +104,7 @@ with sync_playwright() as p:
     
     try:
     # 記事リストが出るまで待つ
+        page.wait_for_selector("text=通知がありません", state="detached", timeout=300000)
         page.wait_for_selector(SELECTOR_TITLE, state="visible", timeout=300000)
     except Exception as e:
         print("⚠️ 要素待ちでエラー:", e)
