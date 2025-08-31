@@ -94,18 +94,26 @@ with sync_playwright() as p:
         # 本文読み込み
         page.wait_for_load_state("load", timeout=30000)
 
-        print("▶ 記事を抽出する前に HTML を保存します...")
-            html = page.content()
-            with open("page.html", "w", encoding="utf-8") as f:
-                f.write(html)
-            print("💾 HTML を保存しました: page.html")
-    
     except PlaywrightTimeoutError:
         print("⚠ ページの読み込みに失敗しました。")
         browser.close()
         raise
 
     print("▶ 記事を抽出しています...")
+
+    # ✅ ここで記事リストが出るまで待つ
+    page.wait_for_selector(SELECTOR_TITLE, state="visible", timeout=120000)
+
+    # ✅ DOMを保存
+    html = page.content()
+    with open("page.html", "w", encoding="utf-8") as f:
+        f.write(html)
+    print("💾 HTML を保存しました: page.html")
+
+    # 必要ならスクリーンショットも保存
+    page.screenshot(path="screenshot.png", full_page=True)
+    
+    
     items = extract_items(
         page,
         SELECTOR_DATE,
