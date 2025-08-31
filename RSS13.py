@@ -80,7 +80,7 @@ with sync_playwright() as p:
         print("💾 HTML を保存しました: page.html")
         
         try:
-            page.wait_for_load_state("networkidle", timeout=30000)
+            page.wait_for_load_state("networkidle", timeout=120000)
         except Exception:
             page.wait_for_load_state("domcontentloaded")
         print("🌐 到達URL:", page.url)
