@@ -113,14 +113,19 @@ with sync_playwright() as p:
     page.on("requestfailed", on_request_failed)
 
     console_log_path = "netlog/console.log"
+
     def on_console(msg):
         try:
-            text = msg.text()
-        except Exception:
-            text = str(msg)
-        with open(console_log_path, "a", encoding="utf-8") as f:
-            f.write(f"[{msg.type()}] {text}\n")
-    page.on("console", on_console)
+            # Playwright のバージョン差異対策（method or property の両対応）
+            mtype = msg.type() if callable(getattr(msg, "type", None)) else getattr(msg, "type", "unknown")
+            mtext = msg.text() if callable(getattr(msg, "text", None)) else str(msg)
+            with open(console_log_path, "a", encoding="utf-8") as f:
+                f.write(f"[{mtype}] {mtext}\n")
+        except Exception as e:
+            # ハンドラ内エラーで全体が落ちないようログだけ残す
+            with open(console_log_path, "a", encoding="utf-8") as f:
+                f.write(f"[handler-error] {e}\n")
+
     
     try:
         print("▶ ページにアクセス中...")
