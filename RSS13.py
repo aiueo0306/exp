@@ -61,7 +61,7 @@ with sync_playwright() as p:
             "Chrome/120.0.0.0 Safari/537.36"
         ),
         extra_http_headers={"Accept-Language": "ja,en;q=0.8"},
-        ignore_https_errors=True, 
+        ignore_https_errors=True,
     )
 
     # Bot検出の緩和
@@ -79,12 +79,34 @@ with sync_playwright() as p:
     # ---------- stg -> prod リライト（必ず goto より前で、with の内側） ----------
     def _rewrite_stg_to_prod(route, request):
         url = request.url
-        if "stg-medical2.taisho.co.jp" in url:
+        if "stg-medical2.taisho.co.jp" in url and "/wp-json/wp/v2/" in url:
             new_url = url.replace("stg-medical2.taisho.co.jp", "medical.taisho.co.jp")
-            route.continue_(url=new_url)  # ← これだけでOK
-            print(f"🔁 rewrote {url} -> {new_url}")
-        else:
-            route.continue_()
+            try:
+                # 元ヘッダをコピーしつつ、Host は消し、Referer/Origin を付ける
+                base_headers = {k: v for k, v in request.headers.items() if k.lower() != "host"}
+                base_headers.update({
+                    "Referer": BASE_URL,
+                    "Origin": "https://medical.taisho.co.jp",
+                })
+                # サーバー側 fetch（CORS影響を受けない）
+                resp = context.request.fetch(
+                    new_url,
+                    method=request.method,
+                    headers=base_headers,
+                    data=request.post_data
+                )
+                route.fulfill(
+                    status=resp.status,
+                    headers=resp.headers,
+                    body=resp.body()
+                )
+                print(f"🔁 rewrote+fulfilled {url} -> {new_url} (status {resp.status})")
+                return  # ← 重要：ここで終了
+            except Exception as e:
+                print(f"rewrite fetch failed: {e} ({url})")
+                # フェイル時は素通し
+        # 対象外は通常通り
+        route.continue_()
 
     context.route("**/*", _rewrite_stg_to_prod)
     # -------------------------------------------------------------------------
@@ -119,7 +141,6 @@ with sync_playwright() as p:
     page.on("requestfailed", on_request_failed)
 
     console_log_path = "netlog/console.log"
-
     def on_console(msg):
         try:
             mtype = msg.type() if callable(getattr(msg, "type", None)) else getattr(msg, "type", "unknown")
@@ -172,8 +193,29 @@ with sync_playwright() as p:
 
         page.wait_for_load_state("load", timeout=30000)
 
-        # 主要要素待ち（固定長ウェイトはしない）
-        page.wait_for_selector(SELECTOR_TITLE, state="attached", timeout=30000)
+        # ---- 完了待ち：記事 or 空表示どちらかが出たらOK ----
+        try:
+            page.wait_for_function(
+                """
+                (sel) => {
+                  return document.querySelector(sel) ||
+                         !!document.querySelector("main")?.innerText?.includes("表示する通知がありません。");
+                }
+                """,
+                arg=SELECTOR_TITLE,
+                timeout=30000
+            )
+        except Exception as e:
+            print("⚠️ 完了待ちでエラー:", e)
+            # デバッグ保存
+            save_dir = os.getcwd()
+            html_path = os.path.join(save_dir, "page.html")
+            screenshot_path = os.path.join(save_dir, "screenshot.png")
+            with open(html_path, "w", encoding="utf-8") as f:
+                f.write(page.content())
+            page.screenshot(path=screenshot_path, full_page=True)
+            print("💾 保存:", html_path, screenshot_path)
+            raise
 
         print("▶ 記事を抽出しています...")
         items = extract_items(
