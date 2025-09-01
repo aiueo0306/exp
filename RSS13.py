@@ -67,8 +67,51 @@ with sync_playwright() as p:
         ),
         extra_http_headers={"Accept-Language": "ja,en;q=0.8"},
     )
+
+    # 🧰 追加: Bot検出の緩和（headlessでもwebdriverをundefinedに）
+    context.add_init_script(
+        "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
+    )
+
+    # 🧰 追加: ランナーのグローバルIPを出力（ジオブロック疑いの切り分け）
+    try:
+        ip = context.request.get("https://api.ipify.org?format=json").json()
+        print("Runner public IP:", ip)
+    except Exception as e:
+        print("IP check failed:", e)
+    
     page = context.new_page()
 
+     # 🧰 追加: ネットワークレスポンス/失敗のキャプチャ（該当APIが空/403など判定）
+    os.makedirs("netlog", exist_ok=True)
+
+    def _tap(url: str) -> bool:
+        # ← ここに“ロードされる可能性がある”API/パスの断片を随時足してOK（汎用のままでもOK）
+        patterns = ["/wp-json/", "/api/", "/ajax", "/doctor-news", "/news", "/wp-admin/admin-ajax.php"]
+        return any(s in url for s in patterns)
+
+    def _safe_name(u: str) -> str:
+        return re.sub(r"[^a-zA-Z0-9_.-]", "_", u)[:180]
+
+    def on_response(res):
+        url = res.url
+        if _tap(url):
+            try:
+                body = res.text()
+            except Exception as e:
+                body = f"<<read error: {e}>>"
+            path = f"netlog/{_safe_name(url)}.txt"
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(f"STATUS: {res.status}\nURL: {url}\n\n{body}")
+            print("📥 captured:", path)
+
+    def on_request_failed(req):
+        if _tap(req.url):
+            print("❌ request failed:", req.url, req.failure)
+
+    page.on("response", on_response)
+    page.on("requestfailed", on_request_failed)
+    
     try:
         print("▶ ページにアクセス中...")
         page.goto(BASE_URL, timeout=30000)
@@ -92,6 +135,21 @@ with sync_playwright() as p:
         else:
             print("ℹ ポップアップ処理はスキップしました（POPUP_MODE=0 または ボタン未指定）")
 
+        # 🧰 追加: ロール/認証のヒントになりそうな情報を吐く（Cookie & localStorage）
+        try:
+            role_info = page.evaluate("() => ({ls: {...localStorage}, ck: document.cookie})")
+            print("role/localStorage snapshot:", role_info)
+        except Exception as e:
+            print("role snapshot failed:", e)
+
+        # 🧰 追加: IntersectionObserver系の遅延ロードに備えて “見せる” 動き
+        try:
+            page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+            page.wait_for_timeout(600)
+            page.evaluate("window.scrollTo(0, 0)")
+        except Exception as e:
+            print("scroll nudge failed:", e)
+        
         # 本文読み込み
         page.wait_for_load_state("load", timeout=30000)
 
