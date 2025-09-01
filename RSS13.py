@@ -82,6 +82,34 @@ with sync_playwright() as p:
     
     page = context.new_page()
 
+    # 🧰 追加: リクエスト書き換え（stg->prod）。他案件は置換先だけ変えれば流用可。
+    def _rewrite_stg_to_prod(route, request):
+        url = request.url
+        if "stg-medical2.taisho.co.jp" in url:
+            new_url = url.replace("stg-medical2.taisho.co.jp", "medical.taisho.co.jp")
+            try:
+                # PlaywrightのAPIRequestContextでサーバーサイドfetch
+                resp = context.request.fetch(
+                    new_url,
+                    method=request.method,
+                    headers={k: v for k, v in request.headers.items() if k.lower() != "host"},
+                    data=request.post_data
+                )
+                route.fulfill(
+                    status=resp.status,
+                    headers=resp.headers,
+                    body=resp.body()
+                )
+                print(f"🔁 rewrote {url} -> {new_url} (status {resp.status})")
+            except Exception as e:
+                print(f"rewrite fetch failed: {e} ({url})")
+                route.abort()
+        else:
+            route.continue_()
+
+context.route("**/*", _rewrite_stg_to_prod)
+
+    
      # 🧰 追加: ネットワークレスポンス/失敗のキャプチャ（該当APIが空/403など判定）
     os.makedirs("netlog", exist_ok=True)
 
@@ -113,16 +141,13 @@ with sync_playwright() as p:
     page.on("requestfailed", on_request_failed)
 
     console_log_path = "netlog/console.log"
-
     def on_console(msg):
         try:
-            # Playwright のバージョン差異対策（method or property の両対応）
             mtype = msg.type() if callable(getattr(msg, "type", None)) else getattr(msg, "type", "unknown")
             mtext = msg.text() if callable(getattr(msg, "text", None)) else str(msg)
             with open(console_log_path, "a", encoding="utf-8") as f:
                 f.write(f"[{mtype}] {mtext}\n")
         except Exception as e:
-            # ハンドラ内エラーで全体が落ちないようログだけ残す
             with open(console_log_path, "a", encoding="utf-8") as f:
                 f.write(f"[handler-error] {e}\n")
 
