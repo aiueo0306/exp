@@ -75,6 +75,7 @@ with sync_playwright() as p:
         
         try:
             page.wait_for_load_state("networkidle", timeout=120000)
+            page.wait_for_timeout(30000)
             print("通過したよ")
         except Exception:
             page.wait_for_load_state("domcontentloaded")
