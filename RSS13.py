@@ -159,8 +159,7 @@ with sync_playwright() as p:
         raise
 
     try:
-        page.wait_for_timeout(1800000)
-        page.wait_for_selector(SELECTOR_TITLE, state="attached", timeout=30000)
+       page.wait_for_selector(SELECTOR_TITLE, state="attached", timeout=30000)
     except Exception as e:
         print("⚠️ 要素待ちでエラー:", e)
             # 途中状態を必ず保存
