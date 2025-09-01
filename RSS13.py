@@ -74,7 +74,7 @@ with sync_playwright() as p:
         page.goto(BASE_URL, timeout=30000)
         
         try:
-            page.wait_for_load_state("networkidle", timeout=300000)
+            page.wait_for_load_state("networkidle", timeout=120000)
             print("通過したよ")
         except Exception:
             page.wait_for_load_state("domcontentloaded")
@@ -104,7 +104,6 @@ with sync_playwright() as p:
     
     try:
     # 記事リストが出るまで待つ
-        page.wait_for_selector("text=通知がありません", state="detached", timeout=300000)
         page.wait_for_selector(SELECTOR_TITLE, state="visible", timeout=300000)
     except Exception as e:
         print("⚠️ 要素待ちでエラー:", e)
