@@ -29,11 +29,12 @@ BASE_URL = "https://medical.taisho.co.jp/medical/doctor-news/"
 GAKKAI = "大正製薬（ニュースレター）"
 
 SELECTOR_TITLE = "div._news_text_jzd1w_19"
+SELECTOR_DATE = "p.mantine-focus-auto._date_jzd1w_1.m_b6d8b162.mantine-Text-root"
+
 title_selector = ""
 title_index = 0
 href_selector = "a"
 href_index = 0
-SELECTOR_DATE = "p.mantine-focus-auto._date_jzd1w_1.m_b6d8b162.mantine-Text-root"
 date_selector = ""
 date_index = 0
 year_unit = "."
@@ -67,7 +68,7 @@ with sync_playwright() as p:
     # Bot検出の緩和
     context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
 
-    # 公開IP表示（任意）
+    # 公開IP（任意）
     try:
         ip = context.request.get("https://api.ipify.org?format=json").json()
         print("Runner public IP:", ip)
@@ -76,42 +77,30 @@ with sync_playwright() as p:
 
     page = context.new_page()
 
-    # ---------- stg -> prod リライト（必ず goto より前で、with の内側） ----------
+    # ---------- stg -> prod リライト ----------
     def _rewrite_stg_to_prod(route, request):
         url = request.url
         if "stg-medical2.taisho.co.jp" in url and "/wp-json/wp/v2/" in url:
             new_url = url.replace("stg-medical2.taisho.co.jp", "medical.taisho.co.jp")
             try:
-                # 元ヘッダをコピーしつつ、Host は消し、Referer/Origin を付ける
                 base_headers = {k: v for k, v in request.headers.items() if k.lower() != "host"}
-                base_headers.update({
-                    "Referer": BASE_URL,
-                    "Origin": "https://medical.taisho.co.jp",
-                })
-                # サーバー側 fetch（CORS影響を受けない）
+                base_headers.update({"Referer": BASE_URL, "Origin": "https://medical.taisho.co.jp"})
                 resp = context.request.fetch(
                     new_url,
                     method=request.method,
                     headers=base_headers,
                     data=request.post_data
                 )
-                route.fulfill(
-                    status=resp.status,
-                    headers=resp.headers,
-                    body=resp.body()
-                )
+                route.fulfill(status=resp.status, headers=resp.headers, body=resp.body())
                 print(f"🔁 rewrote+fulfilled {url} -> {new_url} (status {resp.status})")
-                return  # ← 重要：ここで終了
+                return
             except Exception as e:
                 print(f"rewrite fetch failed: {e} ({url})")
-                # フェイル時は素通し
-        # 対象外は通常通り
         route.continue_()
 
     context.route("**/*", _rewrite_stg_to_prod)
-    # -------------------------------------------------------------------------
 
-    # ---------- ログ（ネットワーク/コンソール） ----------
+    # ---------- ログ ----------
     os.makedirs("netlog", exist_ok=True)
 
     def _tap(u: str) -> bool:
@@ -152,7 +141,7 @@ with sync_playwright() as p:
                 f.write(f"[handler-error] {e}\n")
 
     page.on("console", on_console)
-    # ------------------------------------------------------
+    # -----------------------------------------
 
     try:
         print("▶ ページにアクセス中...")
@@ -176,14 +165,7 @@ with sync_playwright() as p:
         else:
             print("ℹ ポップアップ処理はスキップしました")
 
-        # 役割/認証スナップショット
-        try:
-            role_info = page.evaluate("() => ({ls: {...localStorage}, ck: document.cookie})")
-            print("role/localStorage snapshot:", role_info)
-        except Exception as e:
-            print("role snapshot failed:", e)
-
-        # 遅延読み込み対策のスクロール
+        # 遅延読み込み対策スクロール
         try:
             page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
             page.wait_for_timeout(600)
@@ -193,48 +175,46 @@ with sync_playwright() as p:
 
         page.wait_for_load_state("load", timeout=30000)
 
-        # ---- 完了待ち：記事 or 空表示どちらかが出たらOK ----
-        try:
-            page.wait_for_function(
-                """
-                (sel) => {
-                  return document.querySelector(sel) ||
-                         !!document.querySelector("main")?.innerText?.includes("表示する通知がありません。");
-                }
-                """,
-                arg=SELECTOR_TITLE,
-                timeout=30000
-            )
-        except Exception as e:
-            print("⚠️ 完了待ちでエラー:", e)
-            # デバッグ保存
-            save_dir = os.getcwd()
-            html_path = os.path.join(save_dir, "page.html")
-            screenshot_path = os.path.join(save_dir, "screenshot.png")
-            with open(html_path, "w", encoding="utf-8") as f:
-                f.write(page.content())
-            page.screenshot(path=screenshot_path, full_page=True)
-            print("💾 保存:", html_path, screenshot_path)
-            raise
-
-        print("▶ 記事を抽出しています...")
-        items = extract_items(
-            page,
-            SELECTOR_DATE,
-            SELECTOR_TITLE,
-            title_selector,
-            title_index,
-            href_selector,
-            href_index,
-            BASE_URL,
-            date_selector,
-            date_index,
-            date_format,
-            date_regex,
+        # ---- 記事 or 空状態のどちらかが見えるまで待つ ----
+        page.wait_for_function(
+            """
+            (sel) => {
+              return document.querySelector(sel) ||
+                     !!document.querySelector("main")?.innerText?.includes("表示する通知がありません。");
+            }
+            """,
+            arg=SELECTOR_TITLE,
+            timeout=30000
         )
 
+        # ---- 空状態なら extract_items をスキップ ----
+        html_now = page.content()
+        empty_state = "表示する通知がありません。" in html_now
+        has_items = page.locator(SELECTOR_TITLE).count() > 0
+
+        print(f"state => has_items={has_items}, empty_state={empty_state}")
+
+        if empty_state and not has_items:
+            items = []
+        else:
+            print("▶ 記事を抽出しています...")
+            items = extract_items(
+                page,
+                SELECTOR_DATE,
+                SELECTOR_TITLE,
+                title_selector,
+                title_index,
+                href_selector,
+                href_index,
+                BASE_URL,
+                date_selector,
+                date_index,
+                date_format,
+                date_regex,
+            )
+
         if not items:
-            print("⚠ 抽出できた記事がありません。HTML構造が変わっている可能性があります。")
+            print("⚠ 抽出できた記事がありません（空状態か、構造変化の可能性）。")
 
         os.makedirs("rss_output", exist_ok=True)
         rss_path = "rss_output/Feed20-2.xml"
@@ -243,7 +223,6 @@ with sync_playwright() as p:
 
     except PlaywrightTimeoutError:
         print("⚠ ページの読み込みに失敗しました。")
-        # 落ちる前に証跡保存
         save_dir = os.getcwd()
         html_path = os.path.join(save_dir, "page.html")
         screenshot_path = os.path.join(save_dir, "screenshot.png")
@@ -257,7 +236,6 @@ with sync_playwright() as p:
         raise
     except Exception as e:
         print("❗ 予期せぬエラー:", e)
-        # 証跡保存
         save_dir = os.getcwd()
         html_path = os.path.join(save_dir, "page.html")
         screenshot_path = os.path.join(save_dir, "screenshot.png")
