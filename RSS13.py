@@ -104,6 +104,7 @@ with sync_playwright() as p:
     print("▶ 記事を抽出しています...")
     
     try:
+        page.wait_for_timeout(30000)
     except Exception as e:
         print("⚠️ 要素待ちでエラー:", e)
             # 途中状態を必ず保存
