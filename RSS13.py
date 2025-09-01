@@ -80,18 +80,8 @@ with sync_playwright() as p:
         url = request.url
         if "stg-medical2.taisho.co.jp" in url:
             new_url = url.replace("stg-medical2.taisho.co.jp", "medical.taisho.co.jp")
-            try:
-                resp = context.request.fetch(
-                    new_url,
-                    method=request.method,
-                    headers={k: v for k, v in request.headers.items() if k.lower() != "host"},
-                    data=request.post_data
-                )
-                route.fulfill(status=resp.status, headers=resp.headers, body=resp.body())
-                print(f"🔁 rewrote {url} -> {new_url} (status {resp.status})")
-            except Exception as e:
-                print(f"rewrite fetch failed: {e} ({url})")
-                route.abort()
+            route.continue_(url=new_url)  # ← これだけでOK
+            print(f"🔁 rewrote {url} -> {new_url}")
         else:
             route.continue_()
 
