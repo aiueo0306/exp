@@ -61,6 +61,7 @@ with sync_playwright() as p:
             "Chrome/120.0.0.0 Safari/537.36"
         ),
         extra_http_headers={"Accept-Language": "ja,en;q=0.8"},
+        ignore_https_errors=True, 
     )
 
     # Bot検出の緩和
