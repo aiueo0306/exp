@@ -111,6 +111,16 @@ with sync_playwright() as p:
 
     page.on("response", on_response)
     page.on("requestfailed", on_request_failed)
+
+    console_log_path = "netlog/console.log"
+    def on_console(msg):
+        try:
+            text = msg.text()
+        except Exception:
+            text = str(msg)
+        with open(console_log_path, "a", encoding="utf-8") as f:
+            f.write(f"[{msg.type()}] {text}\n")
+    page.on("console", on_console)
     
     try:
         print("▶ ページにアクセス中...")
