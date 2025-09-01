@@ -104,8 +104,6 @@ with sync_playwright() as p:
     print("▶ 記事を抽出しています...")
     
     try:
-    # 記事リストが出るまで待つ
-        page.wait_for_selector(SELECTOR_TITLE, state="visible", timeout=300000)
     except Exception as e:
         print("⚠️ 要素待ちでエラー:", e)
             # 途中状態を必ず保存
