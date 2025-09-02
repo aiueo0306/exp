@@ -11,6 +11,7 @@ jobs:
 
     permissions:
       contents: write   # GITHUB_TOKEN に push 権限を与える
+      issues: write
 
     steps:
       - name: Checkout repository
@@ -67,6 +68,24 @@ jobs:
           else
             echo "✅ All scripts completed successfully."
           fi
+
+      - name: Create issue with failed scripts
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let errors = "errors.log not found";
+            if (fs.existsSync('errors.log')) {
+              errors = fs.readFileSync('errors.log', 'utf8');
+            }
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: "RSS script failed",
+              body: `❌ The following RSS scripts failed:\n\n${errors}`
+            });
+
 
       - name: Upload debug artifacts
         if: always()
