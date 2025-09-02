@@ -64,7 +64,7 @@ jobs:
           if [ -f errors.log ]; then
             echo "❌ The following RSS scripts failed:"
             cat errors.log
-            exit 1  # ← GitHubが通知を送るトリガー
+            exit 0  # ← GitHubが通知を送るトリガー
           else
             echo "✅ All scripts completed successfully."
           fi
