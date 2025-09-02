@@ -58,16 +58,16 @@ jobs:
           git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
           git push origin main
 
-      # # === 失敗検知＆通知用エラー判定 ===
-      # - name: Check for errors and mark job as failed
-      #   run: |
-      #     if [ -f errors.log ]; then
-      #       echo "❌ The following RSS scripts failed:"
-      #       cat errors.log
-      #       exit 1  # ← GitHubが通知を送るトリガー
-      #     else
-      #       echo "✅ All scripts completed successfully."
-      #     fi
+      # === 失敗検知＆通知用エラー判定 ===
+      - name: Check for errors and mark job as failed
+        run: |
+          if [ -f errors.log ]; then
+            echo "❌ The following RSS scripts failed:"
+            cat errors.log
+            exit 1  # ← GitHubが通知を送るトリガー
+          else
+            echo "✅ All scripts completed successfully."
+          fi
 
       - name: Comment failed scripts to issue
         if: failure()
