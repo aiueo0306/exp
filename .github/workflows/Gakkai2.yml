@@ -35,16 +35,18 @@ jobs:
           for script in RSS*.py; do
             echo "▶ Running $script ..."
             success=false
-            for i in 1; do
+            for i in 1; do   # デバッグ用なので1回だけ
               python "$script" && { success=true; break; }
               echo "⚠️  $script failed (attempt $i)"
               sleep 10
             done
             if [ "$success" = false ]; then
-              echo "$script failed after 3 attempts" >> errors.log
+              # GitHubに「annotation」としてスクリプト名を出す
+              echo "::error file=$script::${script} failed after 1 attempt"
+              echo "$script failed after 1 attempt" >> errors.log
             fi
           done
-
+          
       # === XMLの保存・プッシュ ===
       - name: Commit and push changes
         run: |
